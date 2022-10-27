@@ -2,7 +2,8 @@ const express = require('express')
 const Joi = require('joi')
 
 const Book = require("../../models/contacts")
-const {RequestError} = require("../../helpers")
+const { RequestError } = require("../../helpers")
+const isValidId = require("../../middlewares/isValidId")
 const router = express.Router()
 
 const addSchema = Joi.object({
@@ -12,34 +13,38 @@ const addSchema = Joi.object({
   favorite: Joi.boolean().default(false)
 });
 
-// const updateSchema = Joi.object({
-//   name: Joi.string(),
-//   email: Joi.string(),
-//   phone: Joi.string(),
-// })
+const updateSchema = Joi.object({
+  name: Joi.string(),
+  email: Joi.string(),
+  phone: Joi.string(),
+  favorite: Joi.boolean()
+})
 
-// router.get('/', async (req, res, next) => {
-//   try {
-//     const result = await contacts.listContacts()
-//     res.json(result)
-//   } catch (error) {
-//     next(error)
-//   }
-  
-// })
+const updateFavorireSchema = Joi.object({
+  favorite: Joi.boolean().required()
+})
 
-// router.get('/:contactId', async (req, res, next) => {
-//   try {
-//     const {contactId} = req.params
-//     const result = await contacts.getContactById(contactId)
-//     if (!result) {
-//       throw RequestError(404, "Not found")
-//     }
-//     res.json(result)
-//   } catch (error) {
-//     next(error)
-//   }
-// })
+router.get('/', async (req, res, next) => {
+  try {
+    const result = await Book.find({})
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/:contactId', isValidId, async (req, res, next) => {
+  try {
+    const {contactId} = req.params
+    const result = await Book.findById(contactId)
+    if (!result) {
+      throw RequestError(404, "Not found")
+    }
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
 
 router.post('/', async (req, res, next) => {
   try {
@@ -54,34 +59,51 @@ router.post('/', async (req, res, next) => {
   }
 })
 
-// router.delete('/:contactId', async (req, res, next) => {
-//   try {
-//     const {contactId} = req.params
-//     const result = await contacts.removeContact(contactId)
-//     if (!result) {
-//       throw RequestError(404, "Not found")
-//     }
-//     res.json(result)
-//   } catch (error) {
-//     next(error)
-//   }
-// })
+router.delete('/:contactId', isValidId, async (req, res, next) => {
+  try {
+    const {contactId} = req.params
+    const result = await Book.findByIdAndRemove(contactId)
+    if (!result) {
+      throw RequestError(404, "Not found")
+    }
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
 
-// router.put('/:contactId', async (req, res, next) => {
-//   try {
-//     const {contactId} = req.params
-//     const { error } = updateSchema.validate(req.body)
-//     if (error) {
-//       throw RequestError(400, error.message)
-//     }
-//     const result = await contacts.updateContact(contactId, req.body)
-//     if (!result) {
-//       throw RequestError(404, "Not found")
-//     }
-//     res.json(result)
-//   } catch (error) {
-//     next(error)
-//   }
-// })
+router.put('/:contactId', isValidId, async (req, res, next) => {
+  try {
+    const {contactId} = req.params
+    const { error } = updateSchema.validate(req.body)
+    if (error) {
+      throw RequestError(400, error.message)
+    }
+    const result = await Book.findByIdAndUpdate(contactId, req.body, {new: true})
+    if (!result) {
+      throw RequestError(404, "Not found")
+    }
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.patch('/:contactId/favorite', isValidId, async (req, res, next) => {
+  try {
+    const {contactId} = req.params
+    const { error } = updateFavorireSchema.validate(req.body)
+    if (error) {
+      throw RequestError(400, error.message)
+    }
+    const result = await Book.findByIdAndUpdate(contactId, req.body, {new: true})
+    if (!result) {
+      throw RequestError(404, "Not found")
+    }
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
 
 module.exports = router
