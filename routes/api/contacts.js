@@ -10,7 +10,7 @@ const addSchema = Joi.object({
   email: Joi.string(),
   phone: Joi.string(),
   favorite: Joi.boolean().default(false)
-})
+});
 
 // const updateSchema = Joi.object({
 //   name: Joi.string(),
