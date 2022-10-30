@@ -4,6 +4,7 @@ const Joi = require('joi')
 const Book = require("../../models/contacts")
 const { RequestError } = require("../../helpers")
 const isValidId = require("../../middlewares/isValidId")
+const authenticate = require("../../middlewares/authenticate")
 const router = express.Router()
 
 const addSchema = Joi.object({
@@ -24,16 +25,17 @@ const updateFavorireSchema = Joi.object({
   favorite: Joi.boolean().required()
 })
 
-router.get('/', async (req, res, next) => {
+router.get('/', authenticate, async (req, res, next) => {
   try {
-    const result = await Book.find({})
+    const { _id: owner } = req.user
+    const result = await Book.find({owner})
     res.json(result)
   } catch (error) {
     next(error)
   }
 })
 
-router.get('/:contactId', isValidId, async (req, res, next) => {
+router.get('/:contactId', authenticate, isValidId, async (req, res, next) => {
   try {
     const {contactId} = req.params
     const result = await Book.findById(contactId)
@@ -46,20 +48,21 @@ router.get('/:contactId', isValidId, async (req, res, next) => {
   }
 })
 
-router.post('/', async (req, res, next) => {
+router.post('/', authenticate, async (req, res, next) => {
   try {
     const { error } = addSchema.validate(req.body)
     if (error) {
       throw RequestError(400, error.message)
     }
-    const result = await Book.create(req.body)
+    const { _id: owner } = req.user
+    const result = await Book.create({...req.body, owner})
     res.status(201).json(result)
   } catch (error) {
     next(error)
   }
 })
 
-router.delete('/:contactId', isValidId, async (req, res, next) => {
+router.delete('/:contactId', authenticate, isValidId, async (req, res, next) => {
   try {
     const {contactId} = req.params
     const result = await Book.findByIdAndRemove(contactId)
@@ -72,7 +75,7 @@ router.delete('/:contactId', isValidId, async (req, res, next) => {
   }
 })
 
-router.put('/:contactId', isValidId, async (req, res, next) => {
+router.put('/:contactId', authenticate, isValidId, async (req, res, next) => {
   try {
     const {contactId} = req.params
     const { error } = updateSchema.validate(req.body)
@@ -89,7 +92,7 @@ router.put('/:contactId', isValidId, async (req, res, next) => {
   }
 })
 
-router.patch('/:contactId/favorite', isValidId, async (req, res, next) => {
+router.patch('/:contactId/favorite', authenticate, isValidId, async (req, res, next) => {
   try {
     const {contactId} = req.params
     const { error } = updateFavorireSchema.validate(req.body)
