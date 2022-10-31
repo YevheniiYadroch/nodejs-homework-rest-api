@@ -2,11 +2,16 @@ const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const gravatar = require('gravatar')
+const fs = require('fs/promises')
+const path = require('path')
+const Jimp = require('jimp')
 
 const { RequestError } = require("../../helpers")
 const authenticate = require('../../middlewares/authenticate')
+const upload = require('../../middlewares/upload')
 const { User, signupSchema } = require("../../models/users")
-const {SECRET_KEY} = process.env
+const { SECRET_KEY } = process.env
+const avatarsDir = path.join(__dirname, '../../', 'public', 'avatars')
 
 const router = express.Router()
 
@@ -16,6 +21,31 @@ router.get('/current', authenticate, async (req, res) => {
     email,
     subscription
   })
+})
+
+router.patch('/avatars', authenticate, upload.single('avatar'), async (req, res) => {
+  try {
+    const { _id } = req.user
+    const { path: tempUpload, originalname } = req.file
+    const extension = originalname.split('.').pop()
+    const filename = `${_id}.${extension}`
+    const resultUpload = path.join(avatarsDir, filename)
+    await fs.rename(tempUpload, resultUpload)
+    Jimp.read(resultUpload)
+      .then(image => {
+        image.resize(250, 250).write(resultUpload)
+      })
+      .catch(err => {
+        throw err
+      });
+    const avatarURL = path.join('avatars', filename)
+    await User.findByIdAndUpdate(_id, { avatarURL })
+    res.json({
+      avatarURL: avatarURL
+    })
+  } catch (error) {
+     await fs.unlink(req.file.path)
+  }
 })
 
 router.get('/logout', authenticate, async (req, res) => {
@@ -36,9 +66,8 @@ router.post('/signup', async (req, res, next) => {
       throw RequestError(409, 'Email in use')
       }
     const hashPass = await bcrypt.hash(password, 10)
-    const avatarUrl = gravatar.url(email)
-    console.log(avatarUrl)
-    const result = await User.create({ email, password: hashPass, avatarUrl})
+    const avatarURL = gravatar.url(email)
+    const result = await User.create({ email, password: hashPass, avatarURL })
     res.status(201).json({
         "user": {
         "email": result.email,
