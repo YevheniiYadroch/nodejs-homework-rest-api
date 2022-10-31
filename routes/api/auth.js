@@ -1,6 +1,7 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const gravatar = require('gravatar')
 
 const { RequestError } = require("../../helpers")
 const authenticate = require('../../middlewares/authenticate')
@@ -35,7 +36,9 @@ router.post('/signup', async (req, res, next) => {
       throw RequestError(409, 'Email in use')
       }
     const hashPass = await bcrypt.hash(password, 10)
-    const result = await User.create({ email, password: hashPass})
+    const avatarUrl = gravatar.url(email)
+    console.log(avatarUrl)
+    const result = await User.create({ email, password: hashPass, avatarUrl})
     res.status(201).json({
         "user": {
         "email": result.email,
