@@ -5,12 +5,13 @@ const gravatar = require('gravatar')
 const fs = require('fs/promises')
 const path = require('path')
 const Jimp = require('jimp')
+const nanoid = require('nanoid')
 
-const { RequestError } = require("../../helpers")
+const { RequestError, sendMail } = require("../../helpers")
 const authenticate = require('../../middlewares/authenticate')
 const upload = require('../../middlewares/upload')
-const { User, signupSchema } = require("../../models/users")
-const { SECRET_KEY } = process.env
+const { User, signupSchema, verifySchema } = require("../../models/users")
+const { SECRET_KEY, BASE_URL } = process.env
 const avatarsDir = path.join(__dirname, '../../', 'public', 'avatars')
 
 const router = express.Router()
@@ -20,6 +21,30 @@ router.get('/current', authenticate, async (req, res) => {
   res.json({
     email,
     subscription
+  })
+})
+
+router.get('/verify', async (req, res) => {
+  const { error } = verifySchema.validate(req.body)
+  if (error) {
+    throw RequestError(400, {"message": "missing required field email"})
+  }
+  const { email } = req.body
+  const user = User.findOne({ email })
+  if (!user) {
+    throw RequestError(400, 'Email not found')
+  }
+  if (user.verify) {
+    throw RequestError(400, { message: "Verification has already been passed"})
+  }
+  const mail = {
+      to: email,
+      subject: 'Confirmation of registration',
+      html: `<a target="_blamk" href="${BASE_URL}/users/verify/${user.verificationToken}">Press to confirm</a>`
+  }
+  await sendMail(mail)
+  res.json({
+      message: "Verification email sent"
   })
 })
 
@@ -67,7 +92,14 @@ router.post('/signup', async (req, res, next) => {
       }
     const hashPass = await bcrypt.hash(password, 10)
     const avatarURL = gravatar.url(email)
-    const result = await User.create({ email, password: hashPass, avatarURL })
+    const verificationToken = nanoid()
+    const result = await User.create({ email, password: hashPass, avatarURL, verificationToken })
+    const mail = {
+      to: email,
+      subject: 'Confirmation of registration',
+      html: `<a target="_blamk" href="${BASE_URL}/users/verify/${verificationToken}">Press to confirm</a>`
+    }
+    await sendMail(mail)
     res.status(201).json({
         "user": {
         "email": result.email,
@@ -77,6 +109,18 @@ router.post('/signup', async (req, res, next) => {
   } catch (error) {
     next(error)
   }
+})
+
+router.get('/verify/:verificationToken', async (req, res, next) => {
+  const { verificationToken } = req.params
+  const user = User.findOne({ verificationToken })
+  if (!user) {
+    throw RequestError(404, 'User not found')
+  }
+  await User.findByIdAndUpdate(user._id, { verify: true, verificationToken: "" })
+  res.json({
+    message: 'Verification successful',
+  })
 })
 
 router.post('/login', async (req, res, next) => {
@@ -89,6 +133,9 @@ router.post('/login', async (req, res, next) => {
     const user = await User.findOne({ email })
     if (!user) {
       throw RequestError(401, 'Email or password is wrong')
+      }
+    if (!user.verify) {
+      throw RequestError(401, 'Email is not verified')
       }
     const passCompare = await bcrypt.compare(password, user.password)
     if (!passCompare) {
